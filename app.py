@@ -1,30 +1,25 @@
-from flask import Flask, jsonify
 import requests
 import pdfplumber
 import json
 import re
-import logging
+import os
+from flask import Flask, jsonify
 
-# Configuração do Flask
 app = Flask(__name__)
 
-# URL do PDF da Fenabrave
-url_pdf = "https://www.fenabrave.org.br/portal/files/2025_03_02.pdf"
-caminho_pdf = "dados_fenabrave.pdf"
-
-# Configuração de log
-logging.getLogger("pdfminer").setLevel(logging.ERROR)
-
-# Função para extrair dados do PDF
+@app.route('/extrair_emplacamentos', methods=['GET'])
 def extrair_emplacamentos():
+    # URL do PDF da Fenabrave
+    url_pdf = "https://www.fenabrave.org.br/portal/files/2025_03_02.pdf"
+    caminho_pdf = "dados_fenabrave.pdf"
+
     # Baixar o PDF
     response = requests.get(url_pdf)
-    if response.status_code != 200:
-        return {"error": f"Erro ao baixar PDF. Código HTTP: {response.status_code}"}, 500
-
-    # Salvar PDF localmente
-    with open(caminho_pdf, "wb") as f:
-        f.write(response.content)
+    if response.status_code == 200:
+        with open(caminho_pdf, "wb") as f:
+            f.write(response.content)
+    else:
+        return jsonify({"error": f"Erro ao baixar PDF. Código HTTP: {response.status_code}"}), 400
 
     # Extrair texto da página 7
     with pdfplumber.open(caminho_pdf) as pdf:
@@ -33,7 +28,7 @@ def extrair_emplacamentos():
 
     # Verificar extração
     if not texto_extraido:
-        return {"error": "Erro ao extrair texto do PDF."}, 500
+        return jsonify({"error": "Erro ao extrair texto do PDF."}), 400
 
     # Pré-processar: remover quebras de linha mal posicionadas
     texto_limpo = texto_extraido.replace("\n", " ")
@@ -58,13 +53,11 @@ def extrair_emplacamentos():
             "categoria": categoria
         })
 
+    # Retornar o JSON com os dados
     return jsonify(todos_os_carros)
 
-# Rota para extrair emplacamentos
-@app.route('/extrair_emplacamentos', methods=['GET'])
-def extrair_emplacamentos_api():
-    return extrair_emplacamentos()
 
-# Rodar a aplicação Flask
 if __name__ == "__main__":
-    app.run(debug=True)
+    # A variável de ambiente PORT será definida pelo Render
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
